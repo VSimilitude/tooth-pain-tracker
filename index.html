@@ -88,8 +88,9 @@
   .tab svg{width:22px;height:22px}
   .tab.on{color:var(--accent-ink);background:var(--accent-soft)}
 
-  /* Save bar: pinned just above the bottom nav. Lives inside #view-log,
-     so it hides automatically when the Log view isn't active. */
+  /* Save bar: pinned to the viewport just above the bottom nav.
+     Must NOT be inside .view (its animated transform would trap position:fixed);
+     visibility is toggled per-tab in JS. */
   .savebar{position:fixed;left:0;right:0;bottom:calc(71px + env(safe-area-inset-bottom));z-index:25;
     padding:10px 18px 12px;background:var(--bg);border-top:1px solid var(--line);
     box-shadow:0 -8px 18px rgba(35,32,27,.06)}
@@ -192,6 +193,11 @@
     </div>
 
     <div class="field">
+      <label>When did it happen?</label>
+      <input type="datetime-local" id="when">
+    </div>
+
+    <div class="field">
       <label>Last thing eaten <span class="hint">optional</span></label>
       <input type="text" id="food" placeholder="e.g. iced coffee, almonds…" autocomplete="off">
     </div>
@@ -229,20 +235,17 @@
       <input type="text" id="logMedsNote" placeholder="dose / other (e.g. 400mg, 2pm)" style="margin-top:9px">
     </div>
 
-    <div class="field">
-      <label>When did it happen?</label>
-      <input type="datetime-local" id="when">
-    </div>
-
     <p style="text-align:center;color:var(--muted);font-size:12px;margin:6px 2px 0">
       Only a location is required — everything else is optional.
     </p>
   </div>
-
-  <div class="savebar"><div class="inner">
-    <button class="save" id="saveBtn" disabled>Save entry</button>
-  </div></div>
 </div>
+
+<!-- Save bar lives OUTSIDE #view-log so position:fixed anchors to the viewport
+     (an animated transform on .view would otherwise trap it). Toggled by tab in JS. -->
+<div class="savebar" id="savebar"><div class="inner">
+  <button class="save" id="saveBtn" disabled>Save entry</button>
+</div></div>
 
 <div class="view" id="view-history">
   <div class="wrap">
@@ -375,6 +378,7 @@ function resetForm(){
 $$('.tab').forEach(t=>t.onclick=()=>{
   $$('.tab').forEach(x=>x.classList.remove('on')); t.classList.add('on');
   $$('.view').forEach(v=>v.classList.remove('on')); $('#view-'+t.dataset.view).classList.add('on');
+  $('#savebar').style.display = t.dataset.view==='log' ? '' : 'none';
   if(t.dataset.view==='history'){ renderList(); renderNag(); }
 });
 
