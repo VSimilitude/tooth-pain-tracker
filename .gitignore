@@ -1,0 +1,7 @@
+# macOS / editor noise
+.DS_Store
+Thumbs.db
+*~
+
+# Local data backups exported from the app
+tooth-pain-log-*.json

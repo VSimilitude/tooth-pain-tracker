@@ -1,0 +1,416 @@
+<!-- Tooth Pain Tracker — STANDALONE (localStorage). Meant to be HOSTED.
+     Host free on GitHub Pages or Netlify Drop, open in Safari, then
+     Share -> Add to Home Screen. Data persists across app/phone restarts.
+     NOTE: localStorage does NOT work inside Claude's in-chat preview sandbox —
+     that's expected. It works once this file is opened as a real web page. -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Tooth Log">
+<meta name="theme-color" content="#37726A">
+<title>Tooth Pain Log</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F7F2E9; --card:#FFFDF8; --ink:#23201B; --muted:#7A746A;
+    --line:#E6DECF; --accent:#37726A; --accent-soft:#DCEBE6; --accent-ink:#1E4942;
+    --warn:#B5552F; --shadow:0 1px 2px rgba(35,32,27,.06),0 8px 24px rgba(35,32,27,.06);
+    --r:16px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0}
+  body{
+    font-family:"Hanken Grotesk",sans-serif;background:var(--bg);color:var(--ink);
+    -webkit-font-smoothing:antialiased;line-height:1.45;
+    padding:0 0 calc(86px + env(safe-area-inset-bottom));
+  }
+  .wrap{max-width:520px;margin:0 auto;padding:0 18px}
+  header{padding:max(22px,env(safe-area-inset-top)) 0 14px;text-align:center}
+  header h1{font-family:"Fraunces",serif;font-weight:500;font-size:26px;margin:0;letter-spacing:-.01em}
+  header p{margin:2px 0 0;color:var(--muted);font-size:13.5px}
+
+  .field{margin:22px 0}
+  .field>label{display:block;font-weight:600;font-size:14px;margin:0 2px 9px;letter-spacing:.005em}
+  .field .hint{color:var(--muted);font-weight:400;font-size:12.5px}
+
+  .grid{display:grid;gap:8px}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  .g4{grid-template-columns:repeat(4,1fr)}
+  .archlbl{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 2px 6px}
+  .arch+.arch{margin-top:12px}
+
+  .chip{
+    appearance:none;border:1.5px solid var(--line);background:var(--card);color:var(--ink);
+    font:inherit;font-weight:600;font-size:14.5px;border-radius:13px;min-height:54px;
+    padding:8px 10px;cursor:pointer;transition:transform .08s ease,border-color .12s,background .12s;
+    display:flex;align-items:center;justify-content:center;text-align:center;
+  }
+  .chip:active{transform:scale(.96)}
+  .chip.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-ink)}
+
+  .scale{display:grid;grid-template-columns:repeat(10,1fr);gap:5px}
+  .pip{appearance:none;border:1.5px solid var(--line);background:var(--card);border-radius:10px;
+       height:46px;font:inherit;font-weight:600;font-size:13px;color:var(--muted);cursor:pointer;transition:.1s}
+  .pip:active{transform:scale(.9)}
+  .pip.on{color:#fff;border-color:transparent}
+  .scale-cap{display:flex;justify-content:space-between;color:var(--muted);font-size:11.5px;margin-top:6px;padding:0 2px}
+
+  input[type=text],textarea,input[type=datetime-local]{
+    width:100%;font:inherit;font-size:16px;color:var(--ink);background:var(--card);
+    border:1.5px solid var(--line);border-radius:13px;padding:13px 14px;outline:none;
+  }
+  input:focus,textarea:focus{border-color:var(--accent)}
+  textarea{min-height:74px;resize:vertical}
+
+  .save{
+    width:100%;border:none;background:var(--accent);color:#fff;font:inherit;font-weight:700;
+    font-size:17px;border-radius:15px;min-height:58px;cursor:pointer;margin-top:6px;
+    box-shadow:var(--shadow);transition:transform .08s,filter .12s;
+  }
+  .save:active{transform:scale(.98);filter:brightness(.96)}
+  .save[disabled]{opacity:.45;cursor:default}
+  .ghost{background:none;border:1.5px solid var(--line);color:var(--muted);font:inherit;font-weight:600;
+    border-radius:13px;min-height:48px;padding:0 16px;cursor:pointer}
+
+  nav{position:fixed;left:0;right:0;bottom:0;background:rgba(247,242,233,.92);
+      backdrop-filter:saturate(1.4) blur(10px);border-top:1px solid var(--line);
+      padding:8px 0 calc(8px + env(safe-area-inset-bottom));z-index:30}
+  .tabs{max-width:520px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:0 18px}
+  .tab{appearance:none;border:none;background:none;font:inherit;font-weight:600;font-size:13px;color:var(--muted);
+    padding:8px;border-radius:12px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px}
+  .tab svg{width:22px;height:22px}
+  .tab.on{color:var(--accent-ink);background:var(--accent-soft)}
+
+  .view{display:none;animation:fade .25s ease both}
+  .view.on{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  .entry{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px 15px;
+    margin:11px 0;box-shadow:var(--shadow);cursor:pointer;transition:transform .08s}
+  .entry:active{transform:scale(.99)}
+  .entry .top{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+  .entry .loc{font-family:"Fraunces",serif;font-size:18px;font-weight:500}
+  .entry .when{color:var(--muted);font-size:12.5px;white-space:nowrap}
+  .entry .meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+  .tag{font-size:12px;font-weight:600;background:var(--bg);border:1px solid var(--line);color:var(--muted);
+    border-radius:999px;padding:3px 9px}
+  .tag.int{color:#fff;border:none}
+  .tag.open{background:#FBEFE6;border-color:#EAD2BE;color:var(--warn)}
+  .empty{text-align:center;color:var(--muted);padding:48px 20px;font-size:14.5px}
+  .empty svg{width:42px;height:42px;opacity:.4;margin-bottom:10px}
+
+  .backup{background:#FBEFE6;border:1px solid #EAD2BE;color:var(--warn);border-radius:13px;
+    padding:11px 14px;font-size:13px;font-weight:600;margin:12px 0;display:none;align-items:center;gap:10px}
+  .backup.show{display:flex}
+  .backup button{margin-left:auto;background:var(--warn);color:#fff;border:none;font:inherit;font-weight:700;
+    font-size:13px;border-radius:9px;padding:8px 12px;cursor:pointer;white-space:nowrap}
+
+  .sheet{position:fixed;inset:0;background:rgba(35,32,27,.4);z-index:40;display:none;align-items:flex-end}
+  .sheet.on{display:flex;animation:fade .2s ease}
+  .panel{background:var(--bg);width:100%;max-width:520px;margin:0 auto;border-radius:22px 22px 0 0;
+    max-height:92vh;overflow:auto;padding:8px 18px calc(28px + env(safe-area-inset-bottom));
+    animation:up .26s cubic-bezier(.2,.8,.2,1) both}
+  @keyframes up{from{transform:translateY(100%)}to{transform:none}}
+  .handle{width:38px;height:4px;background:var(--line);border-radius:99px;margin:8px auto 4px}
+  .panel h2{font-family:"Fraunces",serif;font-weight:500;font-size:22px;margin:8px 2px 2px}
+  .panel .sub{color:var(--muted);font-size:13px;margin:0 2px 4px}
+  .summary{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 15px;margin:14px 0;font-size:14px}
+  .summary div{margin:5px 0}
+  .summary b{font-weight:600}
+  .divider{height:1px;background:var(--line);margin:18px 0 4px}
+  .row2{display:flex;gap:10px;margin-top:14px}
+  .row2 .save{margin-top:0}
+  .del{background:none;border:1.5px solid #E8C9BC;color:var(--warn);min-height:58px;border-radius:15px;
+    font:inherit;font-weight:700;font-size:15px;padding:0 18px;cursor:pointer}
+  .toast{position:fixed;left:50%;bottom:calc(100px + env(safe-area-inset-bottom));transform:translateX(-50%);
+    background:var(--ink);color:#fff;font-size:13.5px;font-weight:600;padding:11px 18px;border-radius:999px;
+    z-index:60;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s}
+  .toast.on{opacity:1;transform:translateX(-50%) translateY(-4px)}
+</style>
+
+<header>
+  <h1>Tooth Pain Log</h1>
+  <p>Tap to log — fill in the rest later</p>
+</header>
+
+<div class="view on" id="view-log">
+  <div class="wrap">
+    <div class="field">
+      <label>Where? <span class="hint">tap a region</span></label>
+      <div class="arch"><div class="archlbl">Upper</div>
+        <div class="grid g3" data-group="loc">
+          <button class="chip" data-val="Upper Left">Left</button>
+          <button class="chip" data-val="Upper Front">Front</button>
+          <button class="chip" data-val="Upper Right">Right</button>
+        </div></div>
+      <div class="arch"><div class="archlbl">Lower</div>
+        <div class="grid g3" data-group="loc">
+          <button class="chip" data-val="Lower Left">Left</button>
+          <button class="chip" data-val="Lower Front">Front</button>
+          <button class="chip" data-val="Lower Right">Right</button>
+        </div></div>
+    </div>
+
+    <div class="field">
+      <label>Brought on by? <span class="hint">pick any</span></label>
+      <div class="grid g3" data-group="trig" data-multi="1">
+        <button class="chip" data-val="Cold">Cold</button>
+        <button class="chip" data-val="Hot">Hot</button>
+        <button class="chip" data-val="Sweet">Sweet</button>
+        <button class="chip" data-val="Chewing">Chewing</button>
+        <button class="chip" data-val="Pressure">Pressure</button>
+        <button class="chip" data-val="Spontaneous">Out of nowhere</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>How bad? <span class="hint">optional, 1–10</span></label>
+      <div class="scale" data-group="intensity"></div>
+      <div class="scale-cap"><span>mild</span><span>severe</span></div>
+    </div>
+
+    <div class="field">
+      <label>Last thing eaten <span class="hint">optional</span></label>
+      <input type="text" id="food" placeholder="e.g. iced coffee, almonds…" autocomplete="off">
+    </div>
+
+    <div class="field">
+      <label>…how long before the pain?</label>
+      <div class="grid g4" data-group="timing">
+        <button class="chip" data-val="Immediate">Right away</button>
+        <button class="chip" data-val="~15 min">~15 min</button>
+        <button class="chip" data-val="~1 hr">~1 hr</button>
+        <button class="chip" data-val="1 hr+">1 hr+</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Notes <span class="hint">optional</span></label>
+      <textarea id="notes" placeholder="anything else worth remembering…"></textarea>
+    </div>
+
+    <div class="field">
+      <label>When did it happen?</label>
+      <input type="datetime-local" id="when">
+    </div>
+
+    <button class="save" id="saveBtn" disabled>Save entry</button>
+    <p style="text-align:center;color:var(--muted);font-size:12px;margin:14px 2px 0">
+      Only “where” is required. Add duration & meds afterward from the History tab.
+    </p>
+  </div>
+</div>
+
+<div class="view" id="view-history">
+  <div class="wrap">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin:18px 2px 4px">
+      <h2 style="font-family:Fraunces,serif;font-weight:500;font-size:20px;margin:0">History</h2>
+      <div style="display:flex;gap:8px">
+        <button class="ghost" id="importBtn" style="min-height:40px">Restore</button>
+        <button class="ghost" id="exportBtn" style="min-height:40px">Back up</button>
+      </div>
+    </div>
+    <div class="backup" id="backupNag">
+      <span id="nagText">You have unsaved changes since your last backup.</span>
+      <button id="nagBtn">Back up now</button>
+    </div>
+    <div id="list"></div>
+    <input type="file" id="importFile" accept="application/json,.json" style="display:none">
+  </div>
+</div>
+
+<nav><div class="tabs">
+  <button class="tab on" data-view="log">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    Log
+  </button>
+  <button class="tab" data-view="history">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h18v4H3zM5 8v12h14V8"/><path d="M9 12h6"/></svg>
+    History
+  </button>
+</div></nav>
+
+<div class="sheet" id="sheet"><div class="panel">
+  <div class="handle"></div>
+  <h2 id="d-loc">—</h2>
+  <p class="sub" id="d-when">—</p>
+  <div class="summary" id="d-summary"></div>
+  <div class="divider"></div>
+  <div class="field">
+    <label>How long did it last?</label>
+    <div class="grid g3" data-group="duration">
+      <button class="chip" data-val="A few seconds">Few sec</button>
+      <button class="chip" data-val="~1 min">~1 min</button>
+      <button class="chip" data-val="A few min">Few min</button>
+      <button class="chip" data-val="~15 min">~15 min</button>
+      <button class="chip" data-val="~1 hr">~1 hr</button>
+      <button class="chip" data-val="1 hr+">1 hr+</button>
+      <button class="chip" data-val="Still going" style="grid-column:span 3">Still going</button>
+    </div>
+  </div>
+  <div class="field">
+    <label>Pain meds taken?</label>
+    <div class="grid g3" data-group="meds" data-multi="1">
+      <button class="chip" data-val="Ibuprofen">Ibuprofen</button>
+      <button class="chip" data-val="Acetaminophen">Tylenol</button>
+      <button class="chip" data-val="None">None</button>
+    </div>
+    <input type="text" id="medsNote" placeholder="dose / other (e.g. 400mg, 2pm)" style="margin-top:9px">
+  </div>
+  <div class="row2">
+    <button class="del" id="delBtn">Delete</button>
+    <button class="save" id="updateBtn" style="flex:1">Save changes</button>
+  </div>
+  <button class="ghost" id="closeBtn" style="width:100%;margin-top:12px">Close</button>
+</div></div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------- storage: real browser localStorage (persists across app/phone restarts) ---------- */
+const Store = {
+  KEY:'toothlog:entries:v1', METAKEY:'toothlog:meta:v1',
+  load(){ try{ return JSON.parse(localStorage.getItem(this.KEY)||'[]') }catch(e){ return [] } },
+  save(list){ localStorage.setItem(this.KEY, JSON.stringify(list)); markDirty(); },
+  meta(){ try{ return JSON.parse(localStorage.getItem(this.METAKEY)||'{}') }catch(e){ return {} } },
+  setMeta(m){ localStorage.setItem(this.METAKEY, JSON.stringify(m)); }
+};
+
+let entries = Store.load();
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const intColor=v=>`hsl(${Math.round(140-(v-1)*15)} 55% 42%)`;
+
+/* ---------- backup reminder ---------- */
+function markDirty(){ const m=Store.meta(); m.lastSave=Date.now(); Store.setMeta(m); }
+function backupNeeded(){
+  const m=Store.meta(); if(!entries.length) return 0;
+  if(!m.lastBackup) return entries.length;
+  return (m.lastSave||0) > (m.lastBackup||0) ? 1 : 0;
+}
+function renderNag(){
+  const nag=$('#backupNag'); const need=backupNeeded();
+  if(need){ $('#nagText').textContent = Store.meta().lastBackup
+      ? 'New entries since your last backup.' : 'No backup yet — save one so you can never lose this.';
+    nag.classList.add('show'); } else nag.classList.remove('show');
+}
+
+/* ---------- selection ---------- */
+const sel={loc:null,trig:new Set(),intensity:null,timing:null};
+function wireGroup(root){
+  root.querySelectorAll('.chip').forEach(btn=>btn.onclick=()=>{
+    const g=root.dataset.group;
+    if(g==='trig'){ btn.classList.toggle('on'); btn.classList.contains('on')?sel.trig.add(btn.dataset.val):sel.trig.delete(btn.dataset.val); }
+    else { $$('#view-log [data-group='+g+'] .chip').forEach(b=>b.classList.remove('on')); btn.classList.add('on'); sel[g]=btn.dataset.val; }
+    refreshSave();
+  });
+}
+const sc=$('[data-group=intensity]');
+for(let i=1;i<=10;i++){ const b=document.createElement('button'); b.className='pip'; b.textContent=i; b.dataset.val=i;
+  b.onclick=()=>{ sc.querySelectorAll('.pip').forEach(p=>{p.classList.remove('on');p.style.background=''});
+    b.classList.add('on'); b.style.background=intColor(i); sel.intensity=i; }; sc.appendChild(b); }
+$$('#view-log [data-group]').forEach(g=>{ if(g.dataset.group!=='intensity') wireGroup(g); });
+
+function refreshSave(){ $('#saveBtn').disabled=!sel.loc; }
+function nowLocal(){ const d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,16); }
+$('#when').value=nowLocal();
+
+$('#saveBtn').onclick=()=>{
+  entries.unshift({ id:Date.now()+''+Math.floor(Math.random()*999), loc:sel.loc,
+    triggers:[...sel.trig], intensity:sel.intensity, food:$('#food').value.trim(),
+    timing:sel.timing, notes:$('#notes').value.trim(), when:$('#when').value||nowLocal(),
+    duration:null, meds:[], medsNote:'' });
+  Store.save(entries); resetForm(); toast('Saved ✓'); renderList();
+};
+function resetForm(){
+  sel.loc=null; sel.trig.clear(); sel.intensity=null; sel.timing=null;
+  $$('#view-log .chip').forEach(c=>c.classList.remove('on'));
+  sc.querySelectorAll('.pip').forEach(p=>{p.classList.remove('on');p.style.background=''});
+  $('#food').value=''; $('#notes').value=''; $('#when').value=nowLocal(); refreshSave();
+}
+
+$$('.tab').forEach(t=>t.onclick=()=>{
+  $$('.tab').forEach(x=>x.classList.remove('on')); t.classList.add('on');
+  $$('.view').forEach(v=>v.classList.remove('on')); $('#view-'+t.dataset.view).classList.add('on');
+  if(t.dataset.view==='history'){ renderList(); renderNag(); }
+});
+
+function fmt(w){ const d=new Date(w); return d.toLocaleString([], {weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}); }
+function renderList(){
+  const L=$('#list');
+  if(!entries.length){ L.innerHTML=`<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l2.5 2.5"/></svg><div>No entries yet.<br>Log your first one from the Log tab.</div></div>`; return; }
+  L.innerHTML=entries.map(e=>{
+    const tags=[];
+    if(e.intensity) tags.push(`<span class="tag int" style="background:${intColor(e.intensity)}">${e.intensity}/10</span>`);
+    e.triggers.forEach(t=>tags.push(`<span class="tag">${t}</span>`));
+    if(e.timing) tags.push(`<span class="tag">food: ${e.timing}</span>`);
+    if(!e.duration) tags.push(`<span class="tag open">＋ add duration / meds</span>`);
+    else tags.push(`<span class="tag">lasted ${e.duration}</span>`);
+    return `<div class="entry" data-id="${e.id}"><div class="top"><span class="loc">${e.loc}</span><span class="when">${fmt(e.when)}</span></div><div class="meta">${tags.join('')}</div></div>`;
+  }).join('');
+  L.querySelectorAll('.entry').forEach(el=>el.onclick=()=>openSheet(el.dataset.id));
+}
+
+let cur=null; const dsel={duration:null,meds:new Set()};
+$$('#sheet [data-group]').forEach(root=>root.querySelectorAll('.chip').forEach(btn=>btn.onclick=()=>{
+  if(root.dataset.group==='meds'){ btn.classList.toggle('on'); btn.classList.contains('on')?dsel.meds.add(btn.dataset.val):dsel.meds.delete(btn.dataset.val); }
+  else { root.querySelectorAll('.chip').forEach(b=>b.classList.remove('on')); btn.classList.add('on'); dsel.duration=btn.dataset.val; }
+}));
+function openSheet(id){
+  cur=entries.find(e=>e.id===id); if(!cur)return;
+  dsel.duration=cur.duration; dsel.meds=new Set(cur.meds||[]);
+  $('#d-loc').textContent=cur.loc; $('#d-when').textContent=fmt(cur.when);
+  const s=[]; if(cur.intensity)s.push(`<div><b>Severity:</b> ${cur.intensity}/10</div>`);
+  if(cur.triggers.length)s.push(`<div><b>Triggers:</b> ${cur.triggers.join(', ')}</div>`);
+  if(cur.food)s.push(`<div><b>Last eaten:</b> ${cur.food}${cur.timing?` (${cur.timing} before)`:''}</div>`);
+  if(cur.notes)s.push(`<div><b>Notes:</b> ${cur.notes}</div>`);
+  $('#d-summary').innerHTML=s.join('')||'<div style="color:var(--muted)">No extra details.</div>';
+  $$('#sheet .chip').forEach(c=>c.classList.remove('on'));
+  $$('#sheet [data-group=duration] .chip').forEach(c=>{ if(c.dataset.val===cur.duration)c.classList.add('on'); });
+  $$('#sheet [data-group=meds] .chip').forEach(c=>{ if(dsel.meds.has(c.dataset.val))c.classList.add('on'); });
+  $('#medsNote').value=cur.medsNote||'';
+  $('#sheet').classList.add('on'); document.body.style.overflow='hidden';
+}
+function closeSheet(){ $('#sheet').classList.remove('on'); document.body.style.overflow=''; cur=null; }
+$('#closeBtn').onclick=closeSheet;
+$('#sheet').onclick=e=>{ if(e.target.id==='sheet')closeSheet(); };
+$('#updateBtn').onclick=()=>{ if(!cur)return; cur.duration=dsel.duration; cur.meds=[...dsel.meds]; cur.medsNote=$('#medsNote').value.trim(); Store.save(entries); closeSheet(); toast('Updated ✓'); renderList(); renderNag(); };
+$('#delBtn').onclick=()=>{ if(!cur)return; if(!confirm('Delete this entry?'))return; entries=entries.filter(e=>e.id!==cur.id); Store.save(entries); closeSheet(); toast('Deleted'); renderList(); renderNag(); };
+
+/* ---------- export / import ---------- */
+function doExport(){
+  if(!entries.length){ toast('Nothing to back up'); return; }
+  const blob=new Blob([JSON.stringify(entries,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=`tooth-pain-log-${new Date().toISOString().slice(0,10)}.json`; a.click();
+  URL.revokeObjectURL(a.href);
+  const m=Store.meta(); m.lastBackup=Date.now(); Store.setMeta(m); renderNag(); toast('Backup saved ✓');
+}
+$('#exportBtn').onclick=doExport; $('#nagBtn').onclick=doExport;
+$('#importBtn').onclick=()=>$('#importFile').click();
+$('#importFile').onchange=ev=>{
+  const f=ev.target.files[0]; if(!f)return; const r=new FileReader();
+  r.onload=()=>{ try{
+      const data=JSON.parse(r.result); if(!Array.isArray(data)) throw 0;
+      const byId={}; [...entries,...data].forEach(e=>{ if(e&&e.id) byId[e.id]=e; }); // merge, imported wins
+      entries=Object.values(byId).sort((a,b)=>new Date(b.when)-new Date(a.when));
+      Store.save(entries); renderList(); renderNag(); toast(`Restored — ${data.length} entries merged ✓`);
+    }catch(e){ toast('Couldn’t read that file'); } ev.target.value=''; };
+  r.readAsText(f);
+};
+
+let tT; function toast(m){ const t=$('#toast'); t.textContent=m; t.classList.add('on'); clearTimeout(tT); tT=setTimeout(()=>t.classList.remove('on'),1700); }
+
+renderList(); renderNag();
+
+/* ---------- PWA: register service worker for offline (data stays in localStorage) ---------- */
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); });
+}
+</script>
