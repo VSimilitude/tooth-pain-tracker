@@ -88,6 +88,16 @@
   .tab svg{width:22px;height:22px}
   .tab.on{color:var(--accent-ink);background:var(--accent-soft)}
 
+  /* Save bar: pinned just above the bottom nav. Lives inside #view-log,
+     so it hides automatically when the Log view isn't active. */
+  .savebar{position:fixed;left:0;right:0;bottom:calc(71px + env(safe-area-inset-bottom));z-index:25;
+    padding:10px 18px 12px;background:var(--bg);border-top:1px solid var(--line);
+    box-shadow:0 -8px 18px rgba(35,32,27,.06)}
+  .savebar .inner{max-width:520px;margin:0 auto}
+  .savebar .save{margin-top:0}
+  /* clear the fixed save bar at the end of the log form */
+  #view-log .wrap{padding-bottom:96px}
+
   .view{display:none;animation:fade .25s ease both}
   .view.on{display:block}
   @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
@@ -143,15 +153,15 @@
 <div class="view on" id="view-log">
   <div class="wrap">
     <div class="field">
-      <label>Where? <span class="hint">tap a region</span></label>
+      <label>Where? <span class="hint">tap any that hurt</span></label>
       <div class="arch"><div class="archlbl">Upper</div>
-        <div class="grid g3" data-group="loc">
+        <div class="grid g3" data-group="loc" data-multi="1">
           <button class="chip" data-val="Upper Left">Left</button>
           <button class="chip" data-val="Upper Front">Front</button>
           <button class="chip" data-val="Upper Right">Right</button>
         </div></div>
       <div class="arch"><div class="archlbl">Lower</div>
-        <div class="grid g3" data-group="loc">
+        <div class="grid g3" data-group="loc" data-multi="1">
           <button class="chip" data-val="Lower Left">Left</button>
           <button class="chip" data-val="Lower Front">Front</button>
           <button class="chip" data-val="Lower Right">Right</button>
@@ -163,10 +173,10 @@
       <div class="grid g3" data-group="trig" data-multi="1">
         <button class="chip" data-val="Cold">Cold</button>
         <button class="chip" data-val="Hot">Hot</button>
-        <button class="chip" data-val="Sweet">Sweet</button>
+        <button class="chip" data-val="Sleep / Morning">Sleep / Morning</button>
         <button class="chip" data-val="Chewing">Chewing</button>
-        <button class="chip" data-val="Pressure">Pressure</button>
-        <button class="chip" data-val="Spontaneous">Out of nowhere</button>
+        <button class="chip" data-val="Spontaneous">Spontaneous</button>
+        <button class="chip" data-val="Other">Other…</button>
       </div>
     </div>
 
@@ -174,6 +184,11 @@
       <label>How bad? <span class="hint">optional, 1–10</span></label>
       <div class="scale" data-group="intensity"></div>
       <div class="scale-cap"><span>mild</span><span>severe</span></div>
+    </div>
+
+    <div class="field">
+      <label>Notes <span class="hint">optional</span></label>
+      <textarea id="notes" placeholder="anything else worth remembering…"></textarea>
     </div>
 
     <div class="field">
@@ -192,8 +207,26 @@
     </div>
 
     <div class="field">
-      <label>Notes <span class="hint">optional</span></label>
-      <textarea id="notes" placeholder="anything else worth remembering…"></textarea>
+      <label>How long did it last? <span class="hint">optional</span></label>
+      <div class="grid g3" data-group="duration">
+        <button class="chip" data-val="A few seconds">Few sec</button>
+        <button class="chip" data-val="~1 min">~1 min</button>
+        <button class="chip" data-val="A few min">Few min</button>
+        <button class="chip" data-val="~15 min">~15 min</button>
+        <button class="chip" data-val="~1 hr">~1 hr</button>
+        <button class="chip" data-val="1 hr+">1 hr+</button>
+        <button class="chip" data-val="Still going" style="grid-column:span 3">Still going</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Pain meds taken? <span class="hint">optional</span></label>
+      <div class="grid g3" data-group="meds" data-multi="1">
+        <button class="chip" data-val="Ibuprofen">Ibuprofen</button>
+        <button class="chip" data-val="Acetaminophen">Tylenol</button>
+        <button class="chip" data-val="None">None</button>
+      </div>
+      <input type="text" id="logMedsNote" placeholder="dose / other (e.g. 400mg, 2pm)" style="margin-top:9px">
     </div>
 
     <div class="field">
@@ -201,11 +234,14 @@
       <input type="datetime-local" id="when">
     </div>
 
-    <button class="save" id="saveBtn" disabled>Save entry</button>
-    <p style="text-align:center;color:var(--muted);font-size:12px;margin:14px 2px 0">
-      Only “where” is required. Add duration & meds afterward from the History tab.
+    <p style="text-align:center;color:var(--muted);font-size:12px;margin:6px 2px 0">
+      Only a location is required — everything else is optional.
     </p>
   </div>
+
+  <div class="savebar"><div class="inner">
+    <button class="save" id="saveBtn" disabled>Save entry</button>
+  </div></div>
 </div>
 
 <div class="view" id="view-history">
@@ -302,11 +338,12 @@ function renderNag(){
 }
 
 /* ---------- selection ---------- */
-const sel={loc:null,trig:new Set(),intensity:null,timing:null};
+/* Sets => multi-select groups; scalars => single-select. */
+const sel={loc:new Set(),trig:new Set(),intensity:null,timing:null,duration:null,meds:new Set()};
 function wireGroup(root){
+  const g=root.dataset.group, multi=root.dataset.multi==='1';
   root.querySelectorAll('.chip').forEach(btn=>btn.onclick=()=>{
-    const g=root.dataset.group;
-    if(g==='trig'){ btn.classList.toggle('on'); btn.classList.contains('on')?sel.trig.add(btn.dataset.val):sel.trig.delete(btn.dataset.val); }
+    if(multi){ btn.classList.toggle('on'); btn.classList.contains('on')?sel[g].add(btn.dataset.val):sel[g].delete(btn.dataset.val); }
     else { $$('#view-log [data-group='+g+'] .chip').forEach(b=>b.classList.remove('on')); btn.classList.add('on'); sel[g]=btn.dataset.val; }
     refreshSave();
   });
@@ -317,22 +354,22 @@ for(let i=1;i<=10;i++){ const b=document.createElement('button'); b.className='p
     b.classList.add('on'); b.style.background=intColor(i); sel.intensity=i; }; sc.appendChild(b); }
 $$('#view-log [data-group]').forEach(g=>{ if(g.dataset.group!=='intensity') wireGroup(g); });
 
-function refreshSave(){ $('#saveBtn').disabled=!sel.loc; }
+function refreshSave(){ $('#saveBtn').disabled=sel.loc.size===0; }
 function nowLocal(){ const d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,16); }
 $('#when').value=nowLocal();
 
 $('#saveBtn').onclick=()=>{
-  entries.unshift({ id:Date.now()+''+Math.floor(Math.random()*999), loc:sel.loc,
+  entries.unshift({ id:Date.now()+''+Math.floor(Math.random()*999), loc:[...sel.loc],
     triggers:[...sel.trig], intensity:sel.intensity, food:$('#food').value.trim(),
     timing:sel.timing, notes:$('#notes').value.trim(), when:$('#when').value||nowLocal(),
-    duration:null, meds:[], medsNote:'' });
+    duration:sel.duration, meds:[...sel.meds], medsNote:$('#logMedsNote').value.trim() });
   Store.save(entries); resetForm(); toast('Saved ✓'); renderList();
 };
 function resetForm(){
-  sel.loc=null; sel.trig.clear(); sel.intensity=null; sel.timing=null;
+  sel.loc.clear(); sel.trig.clear(); sel.intensity=null; sel.timing=null; sel.duration=null; sel.meds.clear();
   $$('#view-log .chip').forEach(c=>c.classList.remove('on'));
   sc.querySelectorAll('.pip').forEach(p=>{p.classList.remove('on');p.style.background=''});
-  $('#food').value=''; $('#notes').value=''; $('#when').value=nowLocal(); refreshSave();
+  $('#food').value=''; $('#notes').value=''; $('#logMedsNote').value=''; $('#when').value=nowLocal(); refreshSave();
 }
 
 $$('.tab').forEach(t=>t.onclick=()=>{
@@ -342,6 +379,7 @@ $$('.tab').forEach(t=>t.onclick=()=>{
 });
 
 function fmt(w){ const d=new Date(w); return d.toLocaleString([], {weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}); }
+const locText=e=>Array.isArray(e.loc)?e.loc.join(', '):(e.loc||''); // tolerate legacy string entries
 function renderList(){
   const L=$('#list');
   if(!entries.length){ L.innerHTML=`<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l2.5 2.5"/></svg><div>No entries yet.<br>Log your first one from the Log tab.</div></div>`; return; }
@@ -352,7 +390,7 @@ function renderList(){
     if(e.timing) tags.push(`<span class="tag">food: ${e.timing}</span>`);
     if(!e.duration) tags.push(`<span class="tag open">＋ add duration / meds</span>`);
     else tags.push(`<span class="tag">lasted ${e.duration}</span>`);
-    return `<div class="entry" data-id="${e.id}"><div class="top"><span class="loc">${e.loc}</span><span class="when">${fmt(e.when)}</span></div><div class="meta">${tags.join('')}</div></div>`;
+    return `<div class="entry" data-id="${e.id}"><div class="top"><span class="loc">${locText(e)}</span><span class="when">${fmt(e.when)}</span></div><div class="meta">${tags.join('')}</div></div>`;
   }).join('');
   L.querySelectorAll('.entry').forEach(el=>el.onclick=()=>openSheet(el.dataset.id));
 }
@@ -365,7 +403,7 @@ $$('#sheet [data-group]').forEach(root=>root.querySelectorAll('.chip').forEach(b
 function openSheet(id){
   cur=entries.find(e=>e.id===id); if(!cur)return;
   dsel.duration=cur.duration; dsel.meds=new Set(cur.meds||[]);
-  $('#d-loc').textContent=cur.loc; $('#d-when').textContent=fmt(cur.when);
+  $('#d-loc').textContent=locText(cur); $('#d-when').textContent=fmt(cur.when);
   const s=[]; if(cur.intensity)s.push(`<div><b>Severity:</b> ${cur.intensity}/10</div>`);
   if(cur.triggers.length)s.push(`<div><b>Triggers:</b> ${cur.triggers.join(', ')}</div>`);
   if(cur.food)s.push(`<div><b>Last eaten:</b> ${cur.food}${cur.timing?` (${cur.timing} before)`:''}</div>`);
